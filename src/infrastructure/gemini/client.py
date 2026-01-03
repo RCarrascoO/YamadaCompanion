@@ -7,39 +7,55 @@ logger = logging.getLogger(__name__)
 class GeminiClient:
     def __init__(self):
         genai.configure(api_key=settings.GOOGLE_API_KEY)
-        # Usando gemma-3-27b-it para aprovechar el límite de 14.4K peticiones diarias (vs 20 de Gemini)
-        self.model = genai.GenerativeModel('gemma-3-27b-it')
+        # Modelo por defecto (Gemma 3 - Alto límite)
+        self.default_model = genai.GenerativeModel('gemma-3-27b-it')
+        # Modelo para Jarvis 2 (Gemini 3 Flash Preview - Multimodal Audio Input)
+        # Corregido: El nombre exacto en la API es 'gemini-3-flash-preview'
+        self.flash_model = genai.GenerativeModel('gemini-3-flash-preview')
+        
         self.chat_sessions = {}  # Diccionario simple para guardar sesiones por usuario/canal
 
-    async def generate_response(self, prompt: str, history: list = None, system_instruction: str = None) -> str:
+    async def generate_response(self, prompt: str, history: list = None, system_instruction: str = None, model_type: str = "default", audio_data: bytes = None) -> str:
         try:
-            # Configuración de generación para que sea más "creativa" (temperatura)
+            # Seleccionar modelo
+            model = self.flash_model if model_type == "flash" else self.default_model
+
+            # Configuración de generación
             generation_config = genai.types.GenerationConfig(
                 candidate_count=1,
-                temperature=0.9, # Alto para que sea expresiva y divertida
+                temperature=0.9,
             )
 
-            # Si hay instrucción de sistema (personalidad), la inyectamos
-            # Nota: En la API de Python, system_instruction se pasa al crear el modelo, 
-            # pero para hacerlo dinámico por mensaje a veces es mejor inyectarlo en el prompt 
-            # o mantener una sesión con historia.
+            content = []
             
-            # Para simplificar y mantener contexto, usaremos chat sessions
-            # Pero aquí haremos una llamada stateless simple si no hay historia
-            
-            full_prompt = prompt
+            # Si hay instrucción de sistema, la añadimos como texto
             if system_instruction:
-                # Inyectamos la personalidad al principio si es una llamada única
-                full_prompt = f"{system_instruction}\n\nUser: {prompt}"
+                content.append(system_instruction)
+            
+            # Si hay audio, lo añadimos
+            if audio_data:
+                content.append({
+                    "mime_type": "audio/wav",
+                    "data": audio_data
+                })
+                # Si hay prompt de texto junto con audio, lo añadimos también
+                if prompt:
+                    content.append(f"User context: {prompt}")
+            else:
+                # Solo texto
+                if system_instruction:
+                    content = f"{system_instruction}\n\nUser: {prompt}"
+                else:
+                    content = prompt
 
-            response = await self.model.generate_content_async(
-                full_prompt,
+            response = await model.generate_content_async(
+                content,
                 generation_config=generation_config
             )
             
             return response.text
         except Exception as e:
-            logger.error(f"Error generando respuesta con Gemini: {e}")
+            logger.error(f"Error generando respuesta con Gemini ({model_type}): {e}")
             if "429" in str(e) or "Resource has been exhausted" in str(e):
                 return "¡Espera un poco! Mucha gente hablándome a la vez... dame unos segundos para respirar. 😮‍💨"
             return "¡Chuta! Me mareé un poco... (Error de conexión con mi cerebro 😵‍💫)"

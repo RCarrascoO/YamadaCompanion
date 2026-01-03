@@ -7,6 +7,10 @@ RUN apt-get update && apt-get install -y \
     gcc \
     libffi-dev \
     python3-dev \
+    ffmpeg \
+    libopus0 \
+    libopus-dev \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Copiar requirements e instalar

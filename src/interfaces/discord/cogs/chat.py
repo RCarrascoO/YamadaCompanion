@@ -134,10 +134,17 @@ class ChatCog(commands.Cog):
                     f"Dice: {clean_content}"
                 )
 
+                # Determinar modelo a usar (Default vs Flash/Jarvis2)
+                model_type = "default"
+                voice_cog = self.bot.get_cog('VoiceCog')
+                if voice_cog and hasattr(voice_cog, 'jarvis2_channels') and message.channel.id in voice_cog.jarvis2_channels:
+                    model_type = "flash"
+
                 # Generar respuesta
                 response = await self.gemini.generate_response(
                     prompt=full_prompt,
-                    system_instruction=LILO_SYSTEM_PROMPT
+                    system_instruction=LILO_SYSTEM_PROMPT,
+                    model_type=model_type
                 )
                 
                 # Guardar interacción en BD

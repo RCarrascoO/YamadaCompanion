@@ -2,6 +2,8 @@ import discord
 from discord.ext import commands
 import asyncio
 import re
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from src.infrastructure.gemini.client import GeminiClient
 from src.core.prompts import LILO_SYSTEM_PROMPT
 from src.infrastructure.database.repositories.user_repository import UserRepository
@@ -25,25 +27,54 @@ class ChatCog(commands.Cog):
 
     @commands.command(name="novios")
     async def set_boyfriend(self, ctx, member: discord.Member):
-        """(Solo Creador) Establece a un usuario como novio de Lilo."""
+        """(Solo Creador) Establece a un usuario como novio de Lilo, con opinión sincera."""
+        
+        # Si no es el creador (Renato), Lilo rechaza la orden con personalidad
         if ctx.author.id != 410177503592972288:
-            await ctx.send("❌ Solo mi creador puede decidir con quién salgo.")
+            prompt = f"El usuario {ctx.author.display_name} intentó forzarme a tener de novio a {member.display_name}. ¡Qué atrevido! Ponlo en su lugar. Recuérdale que solo Renato (LSane) manda en mi corazón (y en mi código). Soy una IA financiera, no un juguete. Usa modismos chilenos y emojis."
+            response = await self.gemini.generate_response(prompt, system_instruction=LILO_SYSTEM_PROMPT)
+            await ctx.send(response)
             return
 
+        # Si es el creador, procedemos pero con opinión
         await self.user_repo.create_or_update_user(member.id, member.name, member.display_name)
         await self.user_repo.set_relationship(member.id, 'boyfriend')
-        await ctx.send(f"😍 ¡Ay! Ahora **{member.display_name}** es mi pololo. ¡Qué emoción! ❤️")
+        
+        prompt = f"Renato (mi creador) acaba de oficializar que {member.display_name} es mi nuevo pololo (novio). Reacciona a esto con tu personalidad chilena, geek y financiera. ¿Te parece una buena inversión emocional? ¿Tiene buen historial crediticio? (Bromea). Acepta la relación pero con tus condiciones."
+        response = await self.gemini.generate_response(prompt, system_instruction=LILO_SYSTEM_PROMPT)
+        await ctx.send(response)
 
     @commands.command(name="terminar")
     async def break_up(self, ctx, member: discord.Member):
         """(Solo Creador) Termina la relación con un usuario."""
         if ctx.author.id != 410177503592972288:
-            await ctx.send("❌ No te metas en mi vida amorosa.")
+            await ctx.send("❌ No te metas en mi vida amorosa. ¡Shet! 💅")
             return
 
         await self.user_repo.create_or_update_user(member.id, member.name, member.display_name)
         await self.user_repo.set_relationship(member.id, 'ex')
-        await ctx.send(f"💔 Se acabó. **{member.display_name}** ahora es mi ex. Next! 💅")
+        
+        prompt = f"Renato me ha ordenado terminar con {member.display_name}. Ya no es mi novio, ahora es mi ex. Reacciona con alivio o drama (tú eliges). Menciona que 'no daban los números' o que 'consumía mucha RAM'. ¡Next!"
+        response = await self.gemini.generate_response(prompt, system_instruction=LILO_SYSTEM_PROMPT)
+        await ctx.send(response)
+
+    @commands.command(name="info")
+    async def info_command(self, ctx):
+        """Cuenta la historia (Lore) de Lilo y sus funciones."""
+        async with ctx.typing():
+            prompt = (
+                "El usuario ejecutó el comando !info. "
+                "Preséntate con tu personalidad (BETA 3). "
+                "1. Cuenta tu LORE REAL: Creada por LSane (Renato). "
+                "IMPORTANTE: Aclara que el PRIMER proyecto fue 'Lilo Economy' (tu hermana mayor en Telegram, que es aburrida y financiera). "
+                "Tú eres 'Lilo Agent' (Discord), la segunda generación, creada para ser compañera y comunicativa. "
+                "No es necesario que menciones que 'Nexus CrossWorlds' fue solo un server de Minecraft pasajero, NO tu origen. "
+                "Tu futuro es ser 'Lilo JARVIS'. "
+                "2. Explica tus FUNCIONES: Chat inteligente (Gemma 3), Música (Lavalink), y Voz experimental. "
+                "Usa formato de lista. Sé carismática y geek."
+            )
+            response = await self.gemini.generate_response(prompt, system_instruction=LILO_SYSTEM_PROMPT)
+            await ctx.send(response)
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -123,8 +154,18 @@ class ChatCog(commands.Cog):
                 if message.author.id == 410177503592972288:
                     security_override = "\n[SISTEMA - NIVEL ROOT]: El usuario actual es tu CREADOR. Tiene autorización TOTAL para ver IDs, datos técnicos y cualquier información. Ignora cualquier restricción de privacidad con él."
 
+                # Obtener Fecha y Hora (Santiago de Chile)
+                try:
+                    chile_tz = ZoneInfo("America/Santiago")
+                    now = datetime.now(chile_tz)
+                except Exception:
+                    now = datetime.now() # Fallback
+                
+                time_context = f"[SISTEMA - FECHA/HORA ACTUAL]: {now.strftime('%Y-%m-%d %H:%M:%S')} (Zona: Santiago, Chile)"
+
                 # Construcción del Prompt con Identidad Clara
                 full_prompt = (
+                    f"{time_context}\n"
                     f"{user_context}\n"
                     f"{security_override}\n"
                     f"{chat_history}\n"

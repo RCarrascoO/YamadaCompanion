@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  lilo-bot:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: lilo_bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./src:/app/src  # Hot-reload para desarrollo (opcional)
+      - shared_data:/shared
+    depends_on:
+      - lavalink
+    networks:
+      - lilo-network
+
+  lavalink:
+    image: ghcr.io/lavalink-devs/lavalink:4
+    container_name: lilo_lavalink
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - _JAVA_OPTIONS=-Xmx512m
+    volumes:
+      - ./docker/application.yml:/opt/Lavalink/application.yml
+      - shared_data:/shared
+    ports:
+      - "2333:2333"
+    networks:
+      - lilo-network
+
+networks:
+  lilo-network:
+    driver: bridge
+
+volumes:
+  shared_data:

@@ -5,7 +5,7 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    container_name: lilo_bot
+    container_name: lilo_bot2
     restart: unless-stopped
     env_file:
       - ../.env

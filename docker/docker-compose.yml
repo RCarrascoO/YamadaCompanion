@@ -1,32 +1,39 @@
 version: '3.8'
 
 services:
-  lilo-bot:
+  yamada-bot:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    container_name: lilo_bot2
+    container_name: yamada_bot
     restart: unless-stopped
     env_file:
       - ../.env
     volumes:
-      - ../src:/app/src  # Hot-reload para desarrollo (opcional)
+      - ../src:/app/src  # Hot-reload para desarrollo
+      - shared_data:/shared
     depends_on:
       - lavalink
+    networks:
+      - yamada-network
 
   lavalink:
     image: ghcr.io/lavalink-devs/lavalink:4
-    container_name: lilo_lavalink
+    container_name: yamada_lavalink
     restart: unless-stopped
     environment:
       - _JAVA_OPTIONS=-Xmx512m
     volumes:
       - ./application.yml:/opt/lavalink/application.yml
+      - shared_data:/shared
     ports:
       - "2333:2333"
     networks:
-      - lilo-network
+      - yamada-network
 
 networks:
-  lilo-network:
+  yamada-network:
     driver: bridge
+
+volumes:
+  shared_data:

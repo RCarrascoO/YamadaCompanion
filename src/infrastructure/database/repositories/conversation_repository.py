@@ -42,6 +42,6 @@ class ConversationRepository:
             
             history += f"User ({name}): {user_msg}\n"
             if bot_resp:
-                history += f"Lilo: {bot_resp}\n"
+                history += f"Yamada: {bot_resp}\n"
             
         return f"\n[HISTORIAL DE CONVERSACIÓN RECIENTE EN ESTE CANAL]:\n{history}\n[FIN DEL HISTORIAL]\n"

@@ -7,7 +7,7 @@ from discord.ext import voice_recv
 
 logger = logging.getLogger(__name__)
 
-class LiloAudioSink(voice_recv.AudioSink):
+class YamadaAudioSink(voice_recv.AudioSink):
     def __init__(self, callback, loop, is_speaking_callback=None):
         super().__init__()
         self.callback = callback
@@ -15,11 +15,11 @@ class LiloAudioSink(voice_recv.AudioSink):
         self.is_speaking_callback = is_speaking_callback
         self.user_buffers = {}
         self.user_last_packet = {}
-        self.silence_threshold = 0.6 # Reducido a 0.6s para mayor rapidez
+        self.silence_threshold = 0.6  # Reducido a 0.6s para mayor rapidez
         self.processing_tasks = {}
 
     def wants_opus(self):
-        return False # Queremos PCM decodificado
+        return False  # Queremos PCM decodificado
 
     def write(self, user, data):
         if user is None:
@@ -61,9 +61,9 @@ class LiloAudioSink(voice_recv.AudioSink):
                     # Convertir PCM a WAV en memoria
                     wav_buffer = io.BytesIO()
                     with wave.open(wav_buffer, 'wb') as wav_file:
-                        wav_file.setnchannels(2) # Discord stereo
-                        wav_file.setsampwidth(2) # 16-bit
-                        wav_file.setframerate(48000) # 48kHz
+                        wav_file.setnchannels(2)     # Discord stereo
+                        wav_file.setsampwidth(2)     # 16-bit
+                        wav_file.setframerate(48000)  # 48kHz
                         wav_file.writeframes(audio_data)
                     
                     wav_buffer.seek(0)

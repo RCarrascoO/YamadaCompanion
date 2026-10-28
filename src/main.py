@@ -14,9 +14,9 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)]
 )
 
-logger = logging.getLogger("LiloBot")
+logger = logging.getLogger("YamadaCompanion")
 
-class LiloBot(commands.Bot):
+class YamadaCompanion(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
         intents.message_content = True
@@ -26,11 +26,11 @@ class LiloBot(commands.Bot):
             command_prefix=settings.DISCORD_PREFIX,
             intents=intents,
             help_command=None,
-            description="Lilo - Asistente Virtual Chilena"
+            description="YamadaCompanion - AI Discord Companion & Multimedia Assistant"
         )
 
     async def setup_hook(self):
-        logger.info(f"Iniciando Lilo en entorno: {settings.ENVIRONMENT}")
+        logger.info(f"Iniciando YamadaCompanion en entorno: {settings.ENVIRONMENT}")
         
         # Inicializar Base de Datos
         await db_client.connect()
@@ -39,17 +39,16 @@ class LiloBot(commands.Bot):
         await self.load_extension("src.interfaces.discord.cogs.chat")
         await self.load_extension("src.interfaces.discord.cogs.music")
         await self.load_extension("src.interfaces.discord.cogs.voice")
-        logger.info("Setup completado.")
+        logger.info("Setup completado exitosamente.")
 
     async def on_ready(self):
         logger.info(f'Conectada como {self.user} (ID: {self.user.id})')
         logger.info('------')
-        # Quitamos el "Escuchando tus dramas" y ponemos algo más Jarvis/Friday
-        activity = discord.Activity(type=discord.ActivityType.watching, name="sistemas operativos 🖥️")
+        activity = discord.Activity(type=discord.ActivityType.listening, name="!info | !play 🎧")
         await self.change_presence(activity=activity)
 
 async def main():
-    bot = LiloBot()
+    bot = YamadaCompanion()
     async with bot:
         await bot.start(settings.DISCORD_TOKEN)
 
@@ -57,5 +56,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        # Manejar cierre limpio
         pass

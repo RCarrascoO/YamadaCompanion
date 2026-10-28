@@ -98,7 +98,7 @@ class MusicCog(commands.Cog):
 
     @commands.command(name="join", aliases=["j"])
     async def join_command(self, ctx):
-        """Invita a Lilo al canal de voz."""
+        """Invita a Yamada al canal de voz."""
         if not ctx.author.voice:
             return await ctx.send("No estás en un canal de voz. ¿Dónde quieres que entre? 🤨")
         
@@ -117,21 +117,21 @@ class MusicCog(commands.Cog):
         try:
             frases_bienvenida = [
                 "¡Hola a todos! ¿Cómo están? Lista para poner buena música.",
-                "¡Llegó Lilo! Espero que estén teniendo un gran día.",
-                "¡Buenas buenas! ¿Qué vamos a escuchar hoy?",
-                "¡Hola! Ya estoy aquí. Pídanme lo que quieran.",
-                "¡Wena los cabros! ¿Listos para el mambo?",
-                "¡Hola! Me encanta que me inviten. ¿Cómo va todo?",
-                "¡Llegué! Y traje mis mejores playlists."
+                "¡Llegó Yamada! Espero que estén teniendo un gran día.",
+                "¡Buenas! ¿Qué vamos a escuchar hoy?",
+                "¡Hola! Ya estoy aquí. Pídanme la música que quieran.",
+                "¡Saludos a todos! ¿Listos para la música?",
+                "¡Hola! Me alegra acompañarlos. ¿Qué ponemos en la lista?",
+                "¡Llegué! Y traje mis mejores selecciones musicales."
             ]
             saludo = random.choice(frases_bienvenida)
             
             # Obtener voz actual
             voice_cog = self.bot.get_cog('VoiceCog')
-            voice = voice_cog.voice if voice_cog else "es-CL-CatalinaNeural"
+            voice = voice_cog.voice if voice_cog else "es-MX-DaliaNeural"
             
             # Generar TTS
-            tts_path = "/shared/tts_welcome.mp3"
+            tts_path = "/shared/yamada_tts_welcome.mp3"
             communicate = edge_tts.Communicate(saludo, voice)
             await communicate.save(tts_path)
             
@@ -141,9 +141,6 @@ class MusicCog(commands.Cog):
             if tts_tracks:
                 tts_track = tts_tracks[0]
                 await player.play(tts_track)
-                # No necesitamos esperar aquí porque no hay canción que reanudar
-                # Solo marcamos speaking=False después de un tiempo prudente o dejamos que el evento track_end lo maneje
-                # Pero como track_end ignora si speaking=True, mejor lo manejamos aquí simple
                 if tts_track.length:
                     await asyncio.sleep(tts_track.length / 1000)
                 else:
@@ -192,12 +189,12 @@ class MusicCog(commands.Cog):
 
     @commands.command(name="stop", aliases=["leave", "disconnect"])
     async def stop_command(self, ctx):
-        """Detiene la música y desconecta a Lilo."""
+        """Detiene la música y desconecta a Yamada."""
         if not ctx.voice_client:
-            return await ctx.send("Ni siquiera estoy conectada... 🙄")
+            return await ctx.send("No estoy conectada a ningún canal de voz. 🧐")
         
         await ctx.voice_client.disconnect()
-        await ctx.send("Desconectada. ¡Nos vemos! 👋")
+        await ctx.send("Desconectada. ¡Hasta la próxima! 👋")
 
     @commands.command(name="skip", aliases=["s"])
     async def skip_command(self, ctx):

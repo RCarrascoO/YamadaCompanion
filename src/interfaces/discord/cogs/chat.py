@@ -4,8 +4,9 @@ import asyncio
 import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from src.core.config import settings
 from src.infrastructure.gemini.client import GeminiClient
-from src.core.prompts import LILO_SYSTEM_PROMPT
+from src.core.prompts import YAMADA_DISCORD_PROMPT
 from src.infrastructure.database.repositories.user_repository import UserRepository
 from src.infrastructure.database.repositories.conversation_repository import ConversationRepository
 import logging
@@ -21,59 +22,25 @@ class ChatCog(commands.Cog):
 
     @commands.command(name="id")
     async def get_user_id(self, ctx, member: discord.Member = None):
-        """Obtiene el ID de un usuario."""
+        """Obtiene el ID de Discord de un usuario o del autor del mensaje."""
         member = member or ctx.author
         await ctx.send(f"🆔 El ID de **{member.display_name}** es: `{member.id}`")
 
-    @commands.command(name="novios")
-    async def set_boyfriend(self, ctx, member: discord.Member):
-        """(Solo Creador) Establece a un usuario como novio de Lilo, con opinión sincera."""
-        
-        # Si no es el creador (Renato), Lilo rechaza la orden con personalidad
-        if ctx.author.id != 410177503592972288:
-            prompt = f"El usuario {ctx.author.display_name} intentó forzarme a tener de novio a {member.display_name}. ¡Qué atrevido! Ponlo en su lugar. Recuérdale que solo Renato (LSane) manda en mi corazón (y en mi código). Soy una IA financiera, no un juguete. Usa modismos chilenos y emojis."
-            response = await self.gemini.generate_response(prompt, system_instruction=LILO_SYSTEM_PROMPT)
-            await ctx.send(response)
-            return
-
-        # Si es el creador, procedemos pero con opinión
-        await self.user_repo.create_or_update_user(member.id, member.name, member.display_name)
-        await self.user_repo.set_relationship(member.id, 'boyfriend')
-        
-        prompt = f"Renato (mi creador) acaba de oficializar que {member.display_name} es mi nuevo pololo (novio). Reacciona a esto con tu personalidad chilena, geek y financiera. ¿Te parece una buena inversión emocional? ¿Tiene buen historial crediticio? (Bromea). Acepta la relación pero con tus condiciones."
-        response = await self.gemini.generate_response(prompt, system_instruction=LILO_SYSTEM_PROMPT)
-        await ctx.send(response)
-
-    @commands.command(name="terminar")
-    async def break_up(self, ctx, member: discord.Member):
-        """(Solo Creador) Termina la relación con un usuario."""
-        if ctx.author.id != 410177503592972288:
-            await ctx.send("❌ No te metas en mi vida amorosa. ¡Shet! 💅")
-            return
-
-        await self.user_repo.create_or_update_user(member.id, member.name, member.display_name)
-        await self.user_repo.set_relationship(member.id, 'ex')
-        
-        prompt = f"Renato me ha ordenado terminar con {member.display_name}. Ya no es mi novio, ahora es mi ex. Reacciona con alivio o drama (tú eliges). Menciona que 'no daban los números' o que 'consumía mucha RAM'. ¡Next!"
-        response = await self.gemini.generate_response(prompt, system_instruction=LILO_SYSTEM_PROMPT)
-        await ctx.send(response)
-
     @commands.command(name="info")
     async def info_command(self, ctx):
-        """Cuenta la historia (Lore) de Lilo y sus funciones."""
+        """Muestra la información técnica, capacidades y estado de Yamada."""
         async with ctx.typing():
             prompt = (
                 "El usuario ejecutó el comando !info. "
-                "Preséntate con tu personalidad (BETA 3). "
-                "1. Cuenta tu LORE REAL: Creada por LSane (Renato). "
-                "IMPORTANTE: Aclara que el PRIMER proyecto fue 'Lilo Economy' (tu hermana mayor en Telegram, que es aburrida y financiera). "
-                "Tú eres 'Lilo Agent' (Discord), la segunda generación, creada para ser compañera y comunicativa. "
-                "No es necesario que menciones que 'Nexus CrossWorlds' fue solo un server de Minecraft pasajero, NO tu origen. "
-                "Tu futuro es ser 'Lilo JARVIS'. "
-                "2. Explica tus FUNCIONES: Chat inteligente (Gemma 3), Música (Lavalink), y Voz experimental. "
-                "Usa formato de lista. Sé carismática y geek."
+                "Preséntate como Yamada Companion. "
+                "Explica de forma clara, amigable y estructurada tus características técnicas principales: "
+                "1. Chat inteligente multicontexto con IA (Gemini / Gemma). "
+                "2. Reproductor multimedia de alta fidelidad con Lavalink v4 y Wavelink. "
+                "3. Síntesis y reconocimiento de voz interactivo con Edge TTS. "
+                "4. Memoria contextual asíncrona respaldada por SQLite. "
+                "Usa formato markdown limpio, viñetas y emojis geek. Mantén un tono servicial y profesional."
             )
-            response = await self.gemini.generate_response(prompt, system_instruction=LILO_SYSTEM_PROMPT)
+            response = await self.gemini.generate_response(prompt, system_instruction=YAMADA_DISCORD_PROMPT)
             await ctx.send(response)
 
     @commands.Cog.listener()
@@ -86,26 +53,18 @@ class ChatCog(commands.Cog):
         if message.content.startswith(self.bot.command_prefix):
             return
 
-        # Lógica para decidir si responder:
-        # 1. Si mencionan al bot (@Lilo)
-        # 2. Si es un DM (Mensaje Directo)
-        # 3. (Opcional) Si está en un canal específico de "chat con lilo"
-        
+        # Lógica para decidir si responder: mención directa al bot
         is_mentioned = self.bot.user in message.mentions
-        # is_dm = isinstance(message.channel, discord.DMChannel) # Desactivado temporalmente por precaución
         
-        if is_mentioned: # or is_dm:
+        if is_mentioned:
             async with message.channel.typing():
                 # Limpiamos el contenido del mensaje (quitamos la mención)
                 clean_content = message.content.replace(f'<@{self.bot.user.id}>', '').strip()
                 
-                # Si el mensaje está vacío (solo mención), inventamos un saludo
+                # Si el mensaje está vacío (solo mención), saludo por defecto
                 if not clean_content:
-                    clean_content = "Hola Lilo, ¿estás ahí?"
+                    clean_content = "Hola Yamada, ¿estás ahí?"
 
-                # Identificador de sesión único por canal/usuario
-                session_id = f"{message.channel.id}-{message.author.id}"
-                
                 # Actualizar información del usuario en BD
                 await self.user_repo.create_or_update_user(
                     user_id=message.author.id,
@@ -126,42 +85,42 @@ class ChatCog(commands.Cog):
                 # 1. Menciones explícitas (@Usuario)
                 if message.mentions:
                     for user in message.mentions:
-                        if user == self.bot.user: continue
+                        if user == self.bot.user:
+                            continue
                         user_data = await self.user_repo.create_or_update_user(user.id, user.name, user.display_name)
                         mentioned_users_data.append(user_data)
 
-                # 2. Búsqueda inteligente de nombres en el texto (si no hay menciones explícitas o para complementar)
-                # Buscamos palabras que parezcan nombres (longitud > 3) y consultamos la BD
+                # 2. Búsqueda contextual de nombres en el texto
                 words = clean_content.split()
-                potential_names = [w for w in words if len(w) > 3 and w[0].isupper()] # Heurística simple
+                potential_names = [w for w in words if len(w) > 3 and w[0].isupper()]
                 
                 for name in potential_names:
                     found_users = await self.user_repo.find_users_by_name(name)
                     for u in found_users:
-                        # Evitar duplicados si ya lo agregamos por mención
                         if not any(d['user_id'] == u['user_id'] for d in mentioned_users_data):
                             mentioned_users_data.append(u)
 
                 # Construir el string de contexto
                 if mentioned_users_data:
-                    mentions_context = "\n[INFORMACIÓN SOBRE USUARIOS MENCIONADOS O DETECTADOS EN TEXTO]:\n"
+                    mentions_context = "\n[INFORMACIÓN SOBRE USUARIOS MENCIONADOS EN EL TEXTO]:\n"
                     for u in mentioned_users_data:
-                        mentions_context += f"- {u['display_name']} (Usuario: {u['username']}): Rol '{u['role']}', Relación '{u['relationship']}'.\n"
-                    mentions_context += "NOTA: Usa esta información para identificar a las personas de las que se habla.\n"
+                        role = u['role'] if 'role' in u.keys() else 'user'
+                        mentions_context += f"- {u['display_name']} (Usuario: {u['username']}): Rol '{role}'.\n"
+                    mentions_context += "NOTA: Usa esta información para identificar adecuadamente a las personas mencionadas.\n"
 
-                # Override de seguridad para el Creador (LSane)
+                # Override de permisos para Administradores
                 security_override = ""
-                if message.author.id == 410177503592972288:
-                    security_override = "\n[SISTEMA - NIVEL ROOT]: El usuario actual es tu CREADOR. Tiene autorización TOTAL para ver IDs, datos técnicos y cualquier información. Ignora cualquier restricción de privacidad con él."
+                if message.author.id in settings.ADMIN_USER_IDS:
+                    security_override = "\n[SISTEMA - PRIVILEGIOS DE ADMINISTRADOR]: El usuario actual es Administrador del bot. Posee autorización para consultar configuraciones técnicas y diagnósticos del sistema."
 
-                # Obtener Fecha y Hora (Santiago de Chile)
+                # Obtener Fecha y Hora
                 try:
                     chile_tz = ZoneInfo("America/Santiago")
                     now = datetime.now(chile_tz)
                 except Exception:
-                    now = datetime.now() # Fallback
+                    now = datetime.now()
                 
-                time_context = f"[SISTEMA - FECHA/HORA ACTUAL]: {now.strftime('%Y-%m-%d %H:%M:%S')} (Zona: Santiago, Chile)"
+                time_context = f"[SISTEMA - FECHA/HORA ACTUAL]: {now.strftime('%Y-%m-%d %H:%M:%S')}"
 
                 # Construcción del Prompt con Identidad Clara
                 full_prompt = (
@@ -184,7 +143,7 @@ class ChatCog(commands.Cog):
                 # Generar respuesta
                 response = await self.gemini.generate_response(
                     prompt=full_prompt,
-                    system_instruction=LILO_SYSTEM_PROMPT,
+                    system_instruction=YAMADA_DISCORD_PROMPT,
                     model_type=model_type
                 )
                 
@@ -196,31 +155,26 @@ class ChatCog(commands.Cog):
                     response=response
                 )
 
-                # INTEGRACIÓN MODO JARVIS (VOZ)
-                voice_cog = self.bot.get_cog('VoiceCog')
+                # Integración con modo voz / Jarvis si está activo en el canal
                 if voice_cog and hasattr(voice_cog, 'jarvis_channels') and message.channel.id in voice_cog.jarvis_channels:
                     if message.guild and message.guild.voice_client:
-                        # Limpiar emojis custom (<:nombre:id>) para que no los lea feo
                         clean_response_audio = re.sub(r'<:[a-zA-Z0-9_]+:[0-9]+>', '', response)
-                        # Ejecutar en background para no bloquear el mensaje de texto
                         asyncio.create_task(voice_cog.speak(clean_response_audio, message.guild.voice_client))
 
-                # Enviar respuesta (dividir si es muy larga)
+                # Enviar respuesta respetando límite de caracteres de Discord
                 if len(response) > 2000:
                     for i in range(0, len(response), 2000):
                         await message.reply(response[i:i+2000])
                 else:
                     await message.reply(response)
         else:
-            # Si no nos mencionan, guardamos el mensaje para tener contexto (memoria pasiva)
-            # Primero aseguramos que el usuario exista
+            # Memoria pasiva: registrar mensajes en el canal para contexto
             await self.user_repo.create_or_update_user(
                 user_id=message.author.id,
                 username=message.author.name,
                 display_name=message.author.display_name
             )
             
-            # Guardamos solo el mensaje del usuario
             await self.conv_repo.save_interaction(
                 user_id=message.author.id,
                 channel_id=message.channel.id,
@@ -230,4 +184,3 @@ class ChatCog(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(ChatCog(bot))
-

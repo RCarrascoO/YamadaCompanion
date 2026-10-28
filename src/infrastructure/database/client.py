@@ -1,16 +1,25 @@
 import aiosqlite
 import logging
 import os
+from src.core.config import settings
 
 logger = logging.getLogger(__name__)
 
 class DatabaseClient:
-    def __init__(self, db_path: str = "/shared/lilo.db"):
-        self.db_path = db_path
+    def __init__(self, db_path: str = None):
+        self.db_path = db_path or getattr(settings, 'DB_PATH', '/shared/yamada.db')
         self._connection = None
 
     async def connect(self):
         if not self._connection:
+            # Asegurar que el directorio contenedor exista si es una ruta local
+            db_dir = os.path.dirname(self.db_path)
+            if db_dir and not os.path.exists(db_dir):
+                try:
+                    os.makedirs(db_dir, exist_ok=True)
+                except Exception as e:
+                    logger.warning(f"No se pudo crear directorio para base de datos {db_dir}: {e}")
+
             logger.info(f"Conectando a la base de datos en {self.db_path}...")
             self._connection = await aiosqlite.connect(self.db_path)
             self._connection.row_factory = aiosqlite.Row
@@ -32,14 +41,14 @@ class DatabaseClient:
             first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             reputation INTEGER DEFAULT 0,
-            role TEXT DEFAULT 'user', -- 'admin', 'creator', 'user'
-            relationship TEXT DEFAULT 'none' -- 'brother', 'boyfriend', 'ex', 'none'
+            role TEXT DEFAULT 'user', -- 'admin', 'vip', 'user'
+            relationship TEXT DEFAULT 'none'
         );
 
         CREATE TABLE IF NOT EXISTS conversations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
-            channel_id INTEGER,
+            channel_id INTEGER DEFAULT 0,
             message TEXT,
             response TEXT,
             timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -55,13 +64,7 @@ class DatabaseClient:
         """
         await self._connection.executescript(schema)
         
-        # Migración simple: Intentar añadir la columna relationship si no existe (para no borrar la BD)
-        try:
-            await self._connection.execute("ALTER TABLE users ADD COLUMN relationship TEXT DEFAULT 'none'")
-        except Exception:
-            pass # La columna ya existe o error ignorado
-
-        # Migración para conversations: añadir channel_id
+        # Migración segura: añadir columna channel_id si no existe
         try:
             await self._connection.execute("ALTER TABLE conversations ADD COLUMN channel_id INTEGER DEFAULT 0")
         except Exception:

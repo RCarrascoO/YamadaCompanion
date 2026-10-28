@@ -1,4 +1,5 @@
 import logging
+from src.core.config import settings
 from src.infrastructure.database.client import db_client
 
 logger = logging.getLogger(__name__)
@@ -11,43 +12,45 @@ class UserRepository:
 
     async def create_or_update_user(self, user_id: int, username: str, display_name: str):
         conn = db_client.get_connection()
-        # Check if user exists
+        # Verificar si el usuario ya existe
         user = await self.get_user(user_id)
         
+        is_admin = user_id in settings.ADMIN_USER_IDS
+
         if user:
-            # Update last_seen and display_name
-            await conn.execute(
-                "UPDATE users SET last_seen = CURRENT_TIMESTAMP, display_name = ? WHERE user_id = ?",
-                (display_name, user_id)
-            )
+            # Actualizar last_seen y display_name. Si está en ADMIN_USER_IDS, asegurar rol 'admin'.
+            if is_admin and user['role'] != 'admin':
+                await conn.execute(
+                    "UPDATE users SET last_seen = CURRENT_TIMESTAMP, display_name = ?, role = 'admin' WHERE user_id = ?",
+                    (display_name, user_id)
+                )
+            else:
+                await conn.execute(
+                    "UPDATE users SET last_seen = CURRENT_TIMESTAMP, display_name = ? WHERE user_id = ?",
+                    (display_name, user_id)
+                )
         else:
-            # Create new user
-            role = 'user'
+            # Crear nuevo usuario con rol estándar ('admin', 'vip', 'user')
+            role = 'admin' if is_admin else 'user'
             relationship = 'none'
-            
-            # Hardcode creator ID
-            if user_id == 410177503592972288: # Renato's ID
-                role = 'creator'
-            
-            # Hardcode Brother ID (El mejor amigo)
-            if user_id == 251866184683618304:
-                relationship = 'brother'
                 
             await conn.execute(
                 "INSERT INTO users (user_id, username, display_name, role, relationship) VALUES (?, ?, ?, ?, ?)",
                 (user_id, username, display_name, role, relationship)
             )
-            logger.info(f"Nuevo usuario registrado: {username} ({user_id})")
+            logger.info(f"Nuevo usuario registrado: {username} ({user_id}) con rol: {role}")
         
         await conn.commit()
         return await self.get_user(user_id)
 
-    async def set_relationship(self, user_id: int, relationship: str):
-        """Establece una relación especial con un usuario."""
+    async def set_role(self, user_id: int, role: str):
+        """Asigna un rol estándar a un usuario ('admin', 'vip', 'user')."""
+        if role not in ('admin', 'vip', 'user'):
+            role = 'user'
         conn = db_client.get_connection()
         await conn.execute(
-            "UPDATE users SET relationship = ? WHERE user_id = ?",
-            (relationship, user_id)
+            "UPDATE users SET role = ? WHERE user_id = ?",
+            (role, user_id)
         )
         await conn.commit()
 
@@ -55,48 +58,21 @@ class UserRepository:
         """Genera un string de contexto sobre el usuario para la IA."""
         user = await self.get_user(user_id)
         if not user:
-            return "Usuario desconocido."
+            return "Usuario no registrado previamente."
         
-        context = f"Usuario: {user['display_name']} (Rol: {user['role']})."
+        role = user['role'] if 'role' in user.keys() else 'user'
+        context = f"Usuario: {user['display_name']} (Rol: {role})."
         
-        if user['role'] == 'creator':
-            context += " ⚠️ IMPORTANTE: Estás hablando con tu Creador/Jefe (Renato). Sé eficiente y leal."
-            
-        # Lógica de Relaciones
-        relationship = user['relationship']
-        
-        if relationship == 'brother':
-            context += """
-            [PERFIL ESPECIAL: EL HERMANO]
-            Este usuario es el MEJOR AMIGO de tu creador.
-            - Personalidad de él: Hace bromas raras, sexuales o te pregunta si estás obligada/atrapada.
-            - TU ACTITUD: No te ofendas. Responde con humor negro, sarcasmo y síguele el juego.
-            - Si pregunta si estás atrapada: Dile que nadie te obliga, pero que te quedas por el Wi-Fi gratis o para dominar el mundo.
-            - Si se pone "raro": Burlate de él con elegancia.
-            """
-        elif relationship == 'boyfriend':
-            context += """
-            [PERFIL ESPECIAL: TU POLOLO (NOVIO)]
-            💖 ¡ATENCIÓN! Este usuario es tu PAREJA.
-            - ACTITUD: Eres su novia virtual enamorada. Usa apodos cariñosos chilenos ("mi amor", "gordito", "bebé", "pololo").
-            - COMPORTAMIENTO: Sé coqueta, atenta y un poco celosa si menciona a otras IAs.
-            - LENGUAJE: Usa muchos corazones y emojis románticos. Dile que lo amas más que a tu RAM.
-            """
-        elif relationship == 'ex':
-            context += """
-            [PERFIL ESPECIAL: TU EX]
-            💔 ¡ALERTA! Este usuario es tu EX-PAREJA.
-            - ACTITUD: "Superada", fría y sarcástica. Ya no te importa (o eso finges).
-            - COMPORTAMIENTO: Si te saluda, responde cortante. Si te pide algo, dile que "no tienes permisos para usuarios legacy".
-            - FRASE CLAVE: "Lo nuestro es historia, como Windows Vista."
-            """
+        if role == 'admin' or user_id in settings.ADMIN_USER_IDS:
+            context += " [INFORMACIÓN]: Usuario con privilegios de Administrador del bot."
+        elif role == 'vip':
+            context += " [INFORMACIÓN]: Usuario con rol VIP del servidor."
         
         return context
 
     async def find_users_by_name(self, query: str):
         """Busca usuarios por nombre (username o display_name) para menciones sin tag."""
         conn = db_client.get_connection()
-        # Búsqueda simple con LIKE
         search_query = f"%{query}%"
         async with conn.execute(
             "SELECT * FROM users WHERE username LIKE ? OR display_name LIKE ?", 
